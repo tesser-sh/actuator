@@ -2,6 +2,7 @@ export type OrganizationId = string;
 
 export const ORG_ID_PATTERN = /^org_[0-9a-f]{12}$/;
 export const BOX_ID_PATTERN = /^box_[0-9a-f]{16}$/;
+export const SNAPSHOT_ID = /^snap_[0-9a-f]{16}$/;
 export const THREAD_ID_PATTERN = /^thr_[0-9a-f]{12}$/;
 
 export interface Org {
