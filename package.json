@@ -1,0 +1,13 @@
+{
+  "name": "actuator",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "actuator",
+    "protocol"
+  ],
+  "devDependencies": {
+    "@types/bun": "^1.2.0",
+    "typescript": "^5.7.0"
+  }
+}

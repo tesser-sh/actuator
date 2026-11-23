@@ -1,0 +1,17 @@
+{
+  "name": "@tesser/protocol",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    "./actuator-rpc": "./src/actuator-rpc.ts",
+    "./actuator-fence": "./src/actuator-fence.ts",
+    "./aws": "./src/aws.ts",
+    "./wire": "./src/wire.ts",
+    "./store": "./src/store.ts"
+  },
+  "dependencies": {
+    "@distilled.cloud/aws": "1.0.0-rc.20",
+    "effect": "4.1.5"
+  }
+}

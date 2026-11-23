@@ -1,0 +1,68 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    env:
+      REPOSITORY: public.ecr.aws/tesser/actuator
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          [[ ${TAG#v} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::$TAG is not vX.Y.Z"; exit 1; }
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile --ignore-scripts
+
+      - run: bunx tsc --noEmit
+
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: arn:aws:iam::131798513069:role/tesser-actuator-mirror-publish
+          aws-region: us-east-1
+
+      - id: push
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          aws ecr-public get-login-password | docker login --username AWS --password-stdin public.ecr.aws
+          image="$REPOSITORY:$VERSION"
+          docker buildx build --platform linux/arm64 --provenance=false --sbom=false --build-arg "VERSION=$VERSION" -f actuator/Dockerfile -t "$image" --load .
+          out=$(docker run --rm "$image" 2>&1) && { echo "::error::the actuator started with no ACTUATOR_CONFIG"; exit 1; }
+          grep -q 'StartFailed: ACTUATOR_CONFIG' <<<"$out" || { echo "$out"; echo "::error::the actuator did not refuse a missing ACTUATOR_CONFIG"; exit 1; }
+          docker push "$image"
+          digest=$(docker inspect --format '{{index .RepoDigests 0}}' "$image" | cut -d@ -f2)
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          printf '### actuator %s\n\n```\n%s\n%s@%s\n```\n' "$VERSION" "$image" "$REPOSITORY" "$digest" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ${{ env.REPOSITORY }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
