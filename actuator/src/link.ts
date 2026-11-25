@@ -1,6 +1,18 @@
 import * as sts from "@distilled.cloud/aws/sts";
 import { served } from "@tesser/protocol/actuator-fence";
-import { ACTUATOR_PING, ACTUATOR_PONG, ActuatorCellRpcs, ActuatorRpcs, actuatorUrl, AwsUnanswered, KnownAwsErrors, OPS, type ActuatorConfig, type ActuatorOp } from "@tesser/protocol/actuator-rpc";
+import {
+  ACTUATOR_PING,
+  ACTUATOR_PONG,
+  ACTUATOR_ROLE_HEADER,
+  ActuatorCellRpcs,
+  ActuatorRpcs,
+  actuatorUrl,
+  AwsUnanswered,
+  KnownAwsErrors,
+  OPS,
+  type ActuatorConfig,
+  type ActuatorOp,
+} from "@tesser/protocol/actuator-rpc";
 import { makeWire } from "@tesser/protocol/wire";
 import { Clock, type Context, Deferred, Duration, Effect, Option, Queue, Result, Schema } from "effect";
 import { HttpClient } from "effect/http";
@@ -23,6 +35,7 @@ const MAX_BACKOFF_MS = 30_000;
 export interface Link {
   readonly config: ActuatorConfig;
   readonly version: string;
+  readonly role?: string;
   readonly guard: Guard;
   readonly handlers: Context.Context<Rpc.ToHandler<RpcGroup.Rpcs<typeof ActuatorRpcs>>>;
   readonly draining: Deferred.Deferred<void>;
@@ -44,8 +57,8 @@ const identity = (config: ActuatorConfig) =>
 
 const Refusal = Schema.fromJsonString(Schema.Struct({ error: Schema.Struct({ message: Schema.String }) }));
 
-const refusal = (url: string) =>
-  HttpClient.get(url.replace(/^wss:/, "https:")).pipe(
+const refusal = (url: string, headers: Record<string, string>) =>
+  HttpClient.get(url.replace(/^wss:/, "https:"), { headers }).pipe(
     Effect.flatMap((res) =>
       Effect.map(res.text, (body) => {
         const message = Schema.decodeUnknownOption(Refusal)(body).pipe(
@@ -65,10 +78,11 @@ const session = (link: Link, greeted: () => Effect.Effect<void>) =>
     const url = actuatorUrl(config);
     const token = yield* Effect.result(identity(config));
     if (Result.isFailure(token)) return { greeted: false, why: `no identity token: ${token.failure._tag}: ${token.failure.message}` };
-    const socket = yield* Socket.makeWebSocket(url);
+    const headers: Record<string, string> = link.role === undefined ? {} : { [ACTUATOR_ROLE_HEADER]: link.role };
+    const socket = yield* Socket.makeWebSocket(url, { headers });
     const opened = yield* Effect.result(socket.reader);
     if (Result.isFailure(opened)) {
-      const refused = yield* refusal(url);
+      const refused = yield* refusal(url, headers);
       return { greeted: false, why: refused === undefined ? `cannot reach ${url}: ${opened.failure.message}` : `${url} refused: ${refused}` };
     }
     const reader = opened.success;

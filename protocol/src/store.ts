@@ -1,6 +1,7 @@
 import { Schema } from "effect";
 
 export const CHUNK_BYTES = 2 * 1024 ** 2;
+export const CHUNK_STORED_MAX = CHUNK_BYTES + (CHUNK_BYTES >> 8);
 const STREAM_MAX_BYTES = 1024 ** 4;
 export const MANIFEST_MAX_BYTES = 4 * 1024 ** 2;
 const MAX_STREAMS = 8;

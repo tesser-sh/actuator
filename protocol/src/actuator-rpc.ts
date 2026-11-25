@@ -100,6 +100,23 @@ export type ActuatorKind = ActuatorConfig["kind"];
 export const actuatorUrl = (config: ActuatorConfig) =>
   `${config.cellUrl.replace(/\/$/, "").replace(/^https:/, "wss:")}/v1/actuator/${config.kind === "selfHost" ? config.orgId : `hosted/${config.region}`}`;
 
+export const ACTUATOR_ROLE_HEADER = "x-tesser-actuator-role";
+
+export const actuatorRoleArn = (callerArn: string | undefined) => {
+  const m = callerArn?.match(/^arn:(aws[\w-]*):sts::(\d{12}):assumed-role\/([\w+=,.@-]{1,64})\//);
+  return m == null ? undefined : `arn:${m[1]}:iam::${m[2]}:role/${m[3]}`;
+};
+
+export interface ClaimedActuatorRole {
+  readonly accountId: string | null;
+  readonly role: string | null;
+}
+
+export const claimedActuatorRole = (header: string | null): ClaimedActuatorRole => {
+  const m = header?.match(/^arn:aws[\w-]*:iam::(\d{12}):role\/([\w+=,.@-]{1,64})$/);
+  return m == null ? { accountId: null, role: null } : { accountId: m[1]!, role: m[2]! };
+};
+
 export const ACTUATOR_PING = JSON.stringify({ to: "server", m: { _tag: "Ping" } });
 export const ACTUATOR_PONG = JSON.stringify({ to: "client", m: { _tag: "Pong" } });
 

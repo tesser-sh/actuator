@@ -2,7 +2,7 @@ import * as Credentials from "@distilled.cloud/aws/Credentials";
 import * as Region from "@distilled.cloud/aws/Region";
 import * as sts from "@distilled.cloud/aws/sts";
 import { BunSocket } from "@effect/platform-bun";
-import { ActuatorConfig, KnownAwsErrors } from "@tesser/protocol/actuator-rpc";
+import { ActuatorConfig, actuatorRoleArn, KnownAwsErrors } from "@tesser/protocol/actuator-rpc";
 import { Clock, Deferred, Duration, Effect, Exit, Fiber, Layer, Logger, Option, Schema } from "effect";
 import { FetchHttpClient } from "effect/http";
 import { OtlpLogger, OtlpSerialization, OtlpTracer } from "effect/observability";
@@ -48,7 +48,7 @@ const serve = Effect.fn("Actuator.serve")(function* (config: ActuatorConfig, dra
   const guard = yield* makeGuard(config, audit);
   const handlers = yield* Layer.build(makeOps(config, guard));
   yield* Effect.forkScoped(Effect.sleep(FLUSH_EVERY).pipe(Effect.andThen(Effect.flatMap(Clock.currentTimeMillis, audit.flush)), Effect.forever));
-  const link = yield* Effect.forkScoped(runLink({ config, version: VERSION, guard, handlers, draining }));
+  const link = yield* Effect.forkScoped(runLink({ config, version: VERSION, role: actuatorRoleArn(caller.Arn), guard, handlers, draining }));
   yield* Deferred.await(draining);
   yield* Effect.log("draining");
   const settled = yield* Fiber.join(link).pipe(Effect.andThen(guard.idle), Effect.timeoutOption(DRAIN_LIMIT));
